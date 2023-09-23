@@ -6,62 +6,64 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.reverse import reverse
-from users.models import UserProfile
-from users.permissions import IsEnterpriseUser
+from rest_framework.renderers import BrowsableAPIRenderer
+from .renderers import NonNullJSONRenderer
+from .permissions import HasExpiringLinkPermission
 from .models import ExpiringLink, Image
 from .serializers import (
-    BaseImageSerializer,
-    BasicTierImageSerializer,
-    EnterpriseTierImageSerializer,
+    ImageSerializer,
     ExpiringLinkSerializer,
-    PremiumTierImageSerializer,
 )
 from rest_framework.permissions import IsAuthenticated
 from django.core.files.storage import default_storage
 
 
-class ImageUploadView(generics.CreateAPIView):
-    queryset = Image.objects.all()
-    serializer_class = BaseImageSerializer
+class BaseImageView:
     permission_classes = [IsAuthenticated]
+    serializer_class = ImageSerializer
+    renderer_classes = [NonNullJSONRenderer, BrowsableAPIRenderer]
+
+
+class ImageUploadView(BaseImageView, generics.CreateAPIView):
+    queryset = Image.objects.all()
 
     def perform_create(self, serializer):
         serializer.save(user=self.request.user)
 
 
-class UserImagesView(generics.ListAPIView):
-    permission_classes = [IsAuthenticated]
-
+class UserImagesView(BaseImageView, generics.ListAPIView):
     def get_queryset(self):
         return Image.objects.filter(user=self.request.user)
 
-    def get_serializer_class(self):
-        user_tier = self.request.user.userprofile.tier
-
-        if user_tier == UserProfile.Tier.BASIC:
-            return BasicTierImageSerializer
-        elif user_tier == UserProfile.Tier.PREMIUM:
-            return PremiumTierImageSerializer
-        else:
-            return EnterpriseTierImageSerializer
-
 
 class GenerateExpiringLinkView(generics.CreateAPIView):
-    """_summary_
+    """
+    API view that generates an expiring link for an image.
 
-    Args:
-        APIView (_type_): _description_
+    The view expects a POST request with a JSON payload containing the following fields:
+    - `expires_in`: the number of seconds until the link should expire
+
+    The response will be a JSON object with a `url` field containing the generated link.
+
+    If the request is not authenticated or the user does not have the `generate_expiring_link` permission
+    for the image, a 403 Forbidden response will be returned.
+
+    If the request is successful, a new `ExpiringLink` object will be created and associated with the image.
+    The link will be valid for the specified number of seconds and can be accessed via the `/images/<alias>/` URL.
+
+    Note that the `perform_create` method sets a cache key with the link alias as the key and the string "valid"
+    as the value. This can be used to check whether a link is still valid without hitting the database.
     """
 
     queryset = ExpiringLink.objects.all()
     serializer_class = ExpiringLinkSerializer
-    permission_classes = [IsEnterpriseUser]
+    permission_classes = [HasExpiringLinkPermission]
 
     def create(self, request, *args, **kwargs):
         response = super().create(request, *args, **kwargs)
         if response.status_code == status.HTTP_201_CREATED:
             alias = response.data.get("alias")
-            url = reverse("image-link", kwargs={"alias": alias}, request=request)
+            url = reverse("images:image-link", kwargs={"alias": alias}, request=request)
             return Response({"url": url}, status=status.HTTP_201_CREATED)
         return response
 

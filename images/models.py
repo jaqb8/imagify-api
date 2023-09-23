@@ -3,7 +3,6 @@ from django.db import models
 from django.contrib.auth.models import User
 from django.core.validators import MaxValueValidator, MinValueValidator
 from django.urls import reverse
-from django.contrib.sites.models import Site
 from django_advance_thumbnail import AdvanceThumbnailField
 from django.utils import timezone
 import uuid
@@ -26,6 +25,13 @@ def thumbnail_400_path(instance, filename):
 
 
 class Image(models.Model):
+    class Meta:
+        permissions = [
+            ("can_access_original_image", "Can access original image"),
+            ("can_access_200px_thumbnail", "Can access 200px thumbnail"),
+            ("can_access_400px_thumbnail", "Can access 400px thumbnail"),
+        ]
+
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     user = models.ForeignKey(User, on_delete=models.CASCADE)
     original_file = models.ImageField(upload_to=original_image_path)
@@ -46,6 +52,11 @@ class Image(models.Model):
 
 
 class ExpiringLink(models.Model):
+    class Meta:
+        permissions = [
+            ("can_generate_expiring_link", "Can generate expiring link"),
+        ]
+
     alias = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     image = models.ForeignKey(Image, on_delete=models.CASCADE)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -61,6 +72,4 @@ class ExpiringLink(models.Model):
         return (timezone.now() - self.created_at).seconds > self.expires_in
 
     def __str__(self):
-        relative_url = reverse("image-link", kwargs={"alias": self.alias})
-        domain = Site.objects.get_current().domain
-        return f"http://{domain}{relative_url}"
+        return reverse("images:image-link", kwargs={"alias": self.alias})

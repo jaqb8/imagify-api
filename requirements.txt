@@ -8,3 +8,4 @@ dj-database-url==2.1.0
 Pillow==10.0.1
 django-redis==5.0.0
 django-advance-thumbnail==1.0.0
+factory-boy==3.3.0

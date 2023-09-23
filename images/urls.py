@@ -6,9 +6,10 @@ from .views import (
     UserImagesView,
 )
 
+app_name = "images"
 
 urlpatterns = [
-    path("", UserImagesView.as_view(), name="user-images-list"),
+    path("", UserImagesView.as_view(), name="images-list"),
     path("upload/", ImageUploadView.as_view(), name="image-upload"),
     path(
         "generate-link/<uuid:image_id>/",

@@ -12,10 +12,7 @@ class ImageAdmin(admin.ModelAdmin):
 
 @admin.register(ExpiringLink)
 class ExpiringLinkAdmin(admin.ModelAdmin):
-    readonly_fields = ("link", "image", "created_at", "expires_in", "is_expired")
+    readonly_fields = ("image", "created_at", "expires_in", "is_expired")
     list_display = ("alias", "image", "created_at", "expires_in", "is_expired")
     list_filter = ("created_at",)
     search_fields = ("image__user__username",)
-
-    def link(self, obj):
-        return format_html(f'<a href="{obj}">{obj}</a>')
