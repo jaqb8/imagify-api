@@ -1,15 +1,14 @@
 from django.test import TestCase
 from django.urls import reverse
 from django.contrib.auth import get_user_model
-from django.contrib.auth.models import Group
+from django.contrib.auth.models import Group, Permission
+from django.contrib.contenttypes.models import ContentType
 from django.core.files.uploadedfile import SimpleUploadedFile
 from images.models import Image
 from rest_framework.test import APIClient
 from rest_framework import status
 import tempfile
 from PIL import Image as PILImage
-import factory
-from django.db.models import signals
 import shutil
 from django.core.files.storage import default_storage
 
@@ -22,19 +21,12 @@ generate_expiring_link_url = lambda image_id: reverse(
 )
 
 
-@factory.django.mute_signals(signals.pre_save, signals.post_save)
 def sample_image(user, **kwargs):
     """Create and return a sample image object (disabled signals in order to avoid creating actual thumbnails)"""
     defaults = {
         "original_file": SimpleUploadedFile(
             "test.jpg", b"file_content", content_type="image/jpeg"
-        ),
-        "thumbnail_200": SimpleUploadedFile(
-            "test.jpg", b"file_content", content_type="image/jpeg"
-        ),
-        "thumbnail_400": SimpleUploadedFile(
-            "test.jpg", b"file_content", content_type="image/jpeg"
-        ),
+        )
     }
     defaults.update(kwargs)
     return Image.objects.create(user=user, **defaults)
@@ -83,8 +75,6 @@ class BasicUserImagesApiTests(TestCase):
         self.assertEqual(len(res.data), 1)
 
         self.assertTrue(res.data[0].get("thumbnail_200"))
-        self.assertIn(image.thumbnail_200.url, res.data[0].get("thumbnail_200"))
-
         self.assertFalse(res.data[0].get("thumbnail_400"))
         self.assertFalse(res.data[0].get("original_file"))
 
@@ -102,9 +92,8 @@ class BasicUserImagesApiTests(TestCase):
         self.assertEqual(res.status_code, status.HTTP_201_CREATED)
 
         image = Image.objects.get(id=res.data.get("id"))
-        self.assertTrue(res.data.get("thumbnail_200"))
-        self.assertIn(image.thumbnail_200.url, res.data.get("thumbnail_200"))
 
+        self.assertTrue(res.data.get("thumbnail_200"))
         self.assertFalse(res.data.get("thumbnail_400"))
         self.assertFalse(res.data.get("original_file"))
 
@@ -159,11 +148,7 @@ class PremiumUserImagesApiTests(TestCase):
         self.assertEqual(len(res.data), 1)
 
         self.assertTrue(res.data[0].get("thumbnail_200"))
-        self.assertIn(image.thumbnail_200.url, res.data[0].get("thumbnail_200"))
-
         self.assertTrue(res.data[0].get("thumbnail_400"))
-        self.assertIn(image.thumbnail_400.url, res.data[0].get("thumbnail_400"))
-
         self.assertFalse(res.data[0].get("original_file"))
 
     def test_upload_image(self):
@@ -182,13 +167,8 @@ class PremiumUserImagesApiTests(TestCase):
         image = Image.objects.get(id=res.data.get("id"))
 
         self.assertTrue(res.data.get("thumbnail_200"))
-        self.assertIn(image.thumbnail_200.url, res.data.get("thumbnail_200"))
-
         self.assertTrue(res.data.get("thumbnail_400"))
-        self.assertIn(image.thumbnail_400.url, res.data.get("thumbnail_400"))
-
         self.assertFalse(res.data.get("original_file"))
-
         self.assertTrue(default_storage.exists(image.original_file.path))
 
     def test_upload_image_invalid(self):
@@ -208,3 +188,169 @@ class PremiumUserImagesApiTests(TestCase):
         res = self.client.post(url, {"expires_in": 60})
 
         self.assertEqual(res.status_code, status.HTTP_403_FORBIDDEN)
+
+
+class EnterpriseUserImagesApiTests(TestCase):
+    """Test enterprise user images API"""
+
+    def setUp(self):
+        self.client = APIClient()
+        self.user = get_user_model().objects.create_user(
+            username="testuser", email="test@test.com", password="testpass"
+        )
+        enterprise_tier_group = Group.objects.get(name="EnterpriseTierUsers")
+        enterprise_tier_group.user_set.add(self.user)
+        self.client.force_authenticate(self.user)
+
+    def tearDown(self):
+        """Remove media files after each test"""
+        path = default_storage.path(f"./{self.user.id}")
+        if default_storage.exists(path):
+            shutil.rmtree(path)
+
+    def test_retrieve_images(self):
+        """Test retrieving images. Output should contain original image, 200px and 400px thumbnail."""
+
+        image = sample_image(user=self.user)
+
+        res = self.client.get(IMAGES_URL)
+        image.refresh_from_db()
+
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(res.data), 1)
+
+        self.assertTrue(res.data[0].get("thumbnail_200"))
+        self.assertTrue(res.data[0].get("thumbnail_400"))
+        self.assertTrue(res.data[0].get("original_file"))
+        self.assertIn(image.original_file.name, res.data[0].get("original_file"))
+
+    def test_upload_image(self):
+        """Test uploading an image. Output should contain original image, 200px and 400px thumbnails."""
+
+        with tempfile.NamedTemporaryFile(suffix=".jpg") as ntf:
+            img = PILImage.new("RGB", (10, 10))
+            img.save(ntf, format="JPEG")
+            ntf.seek(0)
+            res = self.client.post(
+                UPLOAD_IMAGE_URL, {"original_file": ntf}, format="multipart"
+            )
+
+        self.assertEqual(res.status_code, status.HTTP_201_CREATED)
+
+        image = Image.objects.get(id=res.data.get("id"))
+
+        self.assertTrue(res.data.get("thumbnail_200"))
+        self.assertTrue(res.data.get("thumbnail_400"))
+        self.assertTrue(res.data.get("original_file"))
+        self.assertIn(image.original_file.name, res.data.get("original_file"))
+        self.assertTrue(default_storage.exists(image.original_file.path))
+
+    def test_upload_image_invalid(self):
+        """Test uploading an invalid image with Enterprise Tier"""
+        res = self.client.post(
+            UPLOAD_IMAGE_URL, {"original_file": "notimage"}, format="multipart"
+        )
+
+        self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_generate_expiring_link(self):
+        """Test generating an expiring link with Enterprise Tier"""
+
+        image = sample_image(user=self.user)
+        url = generate_expiring_link_url(image.id)
+
+        res = self.client.post(url, {"expires_in": 60})
+
+        self.assertEqual(res.status_code, status.HTTP_201_CREATED)
+        self.assertIn("url", res.data)
+
+
+class CustomTierUserImagesApiTests(TestCase):
+    """Test custom tier user images API"""
+
+    def setUp(self):
+        """Create custom tier group which has access to:
+        - 200px thumbnail,
+        - 600px thumbnail,
+        - expiring links.
+
+        Create a user and add them to the custom tier group.
+        """
+
+        self.client = APIClient()
+        self.user = get_user_model().objects.create_user(
+            username="testuser", email="test@test.com", password="testpass"
+        )
+        custom_tier_group = Group.objects.create(name="CustomTierUsers")
+        perm_200px = Permission.objects.get(codename="thumbnail:200")
+        perm_600px, _ = Permission.objects.get_or_create(
+            name="can access 600px thumbnail",
+            content_type=ContentType.objects.get_for_model(Image),
+            codename="thumbnail:600",
+        )
+        perm_expiring_link = Permission.objects.get(
+            codename="can_generate_expiring_link"
+        )
+        custom_tier_group.permissions.add(perm_200px, perm_600px, perm_expiring_link)
+        custom_tier_group.user_set.add(self.user)
+        self.client.force_authenticate(self.user)
+
+    def tearDown(self):
+        """Remove media files after each test"""
+        path = default_storage.path(f"./{self.user.id}")
+        if default_storage.exists(path):
+            shutil.rmtree(path)
+
+    def test_retrieve_images(self):
+        """Test retrieving images. Output should contain 200px and 600px thumbnails."""
+
+        image = sample_image(user=self.user)
+
+        res = self.client.get(IMAGES_URL)
+        image.refresh_from_db()
+
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(res.data), 1)
+
+        self.assertTrue(res.data[0].get("thumbnail_200"))
+        self.assertTrue(res.data[0].get("thumbnail_600"))
+        self.assertFalse(res.data[0].get("original_file"))
+
+    def test_upload_image(self):
+        """Test uploading an image. Output should contain 200px and 600px thumbnails."""
+
+        with tempfile.NamedTemporaryFile(suffix=".jpg") as ntf:
+            img = PILImage.new("RGB", (10, 10))
+            img.save(ntf, format="JPEG")
+            ntf.seek(0)
+            res = self.client.post(
+                UPLOAD_IMAGE_URL, {"original_file": ntf}, format="multipart"
+            )
+
+        self.assertEqual(res.status_code, status.HTTP_201_CREATED)
+
+        image = Image.objects.get(id=res.data.get("id"))
+
+        self.assertTrue(res.data.get("thumbnail_200"))
+        self.assertTrue(res.data.get("thumbnail_600"))
+        self.assertFalse(res.data.get("original_file"))
+        self.assertTrue(default_storage.exists(image.original_file.path))
+
+    def test_upload_image_invalid(self):
+        """Test uploading an invalid image with Custom Tier"""
+        res = self.client.post(
+            UPLOAD_IMAGE_URL, {"original_file": "notimage"}, format="multipart"
+        )
+
+        self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_generate_expiring_link(self):
+        """Test generating an expiring link with Custom Tier"""
+
+        image = sample_image(user=self.user)
+        url = generate_expiring_link_url(image.id)
+
+        res = self.client.post(url, {"expires_in": 60})
+
+        self.assertEqual(res.status_code, status.HTTP_201_CREATED)
+        self.assertIn("url", res.data)

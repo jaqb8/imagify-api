@@ -11,7 +11,7 @@ def create_groups(apps, schema_editor):
     emit_post_migrate_signal(2, False, db_alias)
 
     perm_200px = Permission.objects.get(codename="thumbnail:200")
-    perm_400px = Permission.objects.get(codename="thumbnail:200")
+    perm_400px = Permission.objects.get(codename="thumbnail:400")
     perm_original = Permission.objects.get(codename="can_access_original_image")
     perm_expiring_link = Permission.objects.get(codename="can_generate_expiring_link")
 

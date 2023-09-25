@@ -3,6 +3,8 @@ from .aws import generate_thumbnail_url
 from .models import ExpiringLink, Image
 import os
 from django.conf import settings
+from lib.shared import UserGroupPermissions
+from django.core.exceptions import PermissionDenied
 
 
 class ImageSerializer(serializers.ModelSerializer):
@@ -21,23 +23,20 @@ class ImageSerializer(serializers.ModelSerializer):
 
         request = self.context.get("request")
         if not request and not request.user:
-            return
+            raise PermissionDenied("User not authenticated")
 
-        if request.user.has_perm("images.can_access_original_image"):
+        self.user = request.user
+        self.user.all_permissions = UserGroupPermissions.get_user_permissions(
+            request.user
+        )
+
+        if self.user.all_permissions.contains("can_access_original_image"):
             self.fields["original_file"].write_only = False
 
     def to_representation(self, instance):
         representation = super().to_representation(instance)
 
-        request = self.context.get("request")
-        if not request and not request.user:
-            return representation
-
-        thumbnail_permissions = request.user.user_permissions.filter(
-            codename__startswith="thumbnail:"
-        )
-
-        for permission in thumbnail_permissions:
+        for permission in self.user.all_permissions.startswith("thumbnail:"):
             perm_data = permission.codename.split(":")
             if len(perm_data) < 2:
                 raise ValueError(f"Invalid permission codename: {permission.codename}")
@@ -46,9 +45,6 @@ class ImageSerializer(serializers.ModelSerializer):
             s3_object_key = os.path.join(
                 settings.PUBLIC_MEDIA_LOCATION, instance.original_file.name
             )
-            print("media location", settings.PUBLIC_MEDIA_LOCATION)
-            print("filename", instance.original_file.name)
-            print("s3 key", s3_object_key)
             representation[f"thumbnail_{height}"] = generate_thumbnail_url(
                 s3_object_key, height
             )
