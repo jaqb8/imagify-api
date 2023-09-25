@@ -46,6 +46,9 @@ class ImageSerializer(serializers.ModelSerializer):
             s3_object_key = os.path.join(
                 settings.PUBLIC_MEDIA_LOCATION, instance.original_file.name
             )
+            print("media location", settings.PUBLIC_MEDIA_LOCATION)
+            print("filename", instance.original_file.name)
+            print("s3 key", s3_object_key)
             representation[f"thumbnail_{height}"] = generate_thumbnail_url(
                 s3_object_key, height
             )
