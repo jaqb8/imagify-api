@@ -1,7 +1,8 @@
 import boto3
 from django.conf import settings
+from botocore.config import Config
 
-s3_client = boto3.client("s3")
+s3_client = boto3.client("s3", config=Config(signature_version="s3v4"))
 
 
 def generate_thumbnail_url(resource, thumbnail_height):
