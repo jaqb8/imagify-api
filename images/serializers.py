@@ -8,6 +8,8 @@ from django.core.exceptions import PermissionDenied
 
 
 class ImageSerializer(serializers.ModelSerializer):
+    """Serializer for the Image model."""
+
     original_file = serializers.ImageField(write_only=True)
 
     class Meta:
@@ -19,6 +21,11 @@ class ImageSerializer(serializers.ModelSerializer):
         )
 
     def __init__(self, *args, **kwargs):
+        """Initializes the serializer, checks user authentication and retrieves user permissions (also derived from groups).
+
+        Raises:
+            PermissionDenied: If the user is not authenticated.
+        """
         super().__init__(*args, **kwargs)
 
         request = self.context.get("request")
@@ -34,6 +41,17 @@ class ImageSerializer(serializers.ModelSerializer):
             self.fields["original_file"].write_only = False
 
     def to_representation(self, instance):
+        """Converts the image instance to a dictionary representation including links to accessible thumbnails.
+
+        This method iterates over the user's permissions, checking for any permissions that indicate allowable thumbnail sizes. It then generates URLs for these thumbnails.
+
+        Raises:
+            ValueError: If an invalid permission codename is encountered.
+
+        Returns:
+            dict: A dictionary representation of the image instance with links to accessible thumbnails.
+        """
+
         representation = super().to_representation(instance)
 
         for permission in self.user.all_permissions.startswith("thumbnail:"):
@@ -53,6 +71,8 @@ class ImageSerializer(serializers.ModelSerializer):
 
 
 class ExpiringLinkSerializer(serializers.ModelSerializer):
+    """Serializer for the ExpiringLink model."""
+
     class Meta:
         model = ExpiringLink
         exclude = ("image",)

@@ -19,20 +19,32 @@ from django.core.files.storage import default_storage
 
 
 class BaseImageView:
+    """A base view class for handling image-related operations."""
+
     permission_classes = [IsAuthenticated]
     serializer_class = ImageSerializer
     renderer_classes = [NonNullJSONRenderer, BrowsableAPIRenderer]
 
 
 class ImageUploadView(BaseImageView, generics.CreateAPIView):
+    """A view for handling image upload requests."""
+
     queryset = Image.objects.all()
 
     def perform_create(self, serializer):
+        """Saves the uploaded image with the requesting user as the owner."""
         serializer.save(user=self.request.user)
 
 
 class UserImagesView(BaseImageView, generics.ListAPIView):
+    """Saves the uploaded image with the requesting user as the owner."""
+
     def get_queryset(self):
+        """Filters the Image queryset to return only images owned by the requesting user.
+
+        Returns:
+            QuerySet: A queryset of Image objects owned by the requesting user.
+        """
         return Image.objects.filter(user=self.request.user)
 
 
@@ -47,12 +59,6 @@ class GenerateExpiringLinkView(generics.CreateAPIView):
 
     If the request is not authenticated or the user does not have the `generate_expiring_link` permission
     for the image, a 403 Forbidden response will be returned.
-
-    If the request is successful, a new `ExpiringLink` object will be created and associated with the image.
-    The link will be valid for the specified number of seconds and can be accessed via the `/images/<alias>/` URL.
-
-    Note that the `perform_create` method sets a cache key with the link alias as the key and the string "valid"
-    as the value. This can be used to check whether a link is still valid without hitting the database.
     """
 
     queryset = ExpiringLink.objects.all()
@@ -60,6 +66,14 @@ class GenerateExpiringLinkView(generics.CreateAPIView):
     permission_classes = [HasExpiringLinkPermission]
 
     def create(self, request, *args, **kwargs):
+        """Handles the creation of an expiring link.
+
+        Overrides the create method to handle the creation of an expiring link, and if successful, generates a URL for the expiring link, returning it in the response data.
+
+        Returns:
+            Response: The HTTP response object.
+        """
+
         response = super().create(request, *args, **kwargs)
         if response.status_code == status.HTTP_201_CREATED:
             alias = response.data.get("alias")
@@ -68,6 +82,11 @@ class GenerateExpiringLinkView(generics.CreateAPIView):
         return response
 
     def perform_create(self, serializer):
+        """Save the expiring link object to the database and sets the cache.
+
+        The method saves the expiring link object to the database, and sets a cache with a timeout as specified in the request data.
+        """
+
         data = serializer.validated_data
         image = get_object_or_404(Image, id=self.kwargs.get("image_id"))
         obj = serializer.save(image=image)
@@ -75,7 +94,20 @@ class GenerateExpiringLinkView(generics.CreateAPIView):
 
 
 class ExpiringLinkRedirectView(APIView):
+    """API view to handle the redirection to the original image file via an expiring link.
+
+    This view extracts the alias from the URL, checks the cache to see if the link is still valid,
+    and either redirects the client to the original image file or responds with a `410 Gone` status if the link has expired.
+    """
+
     def get(self, request, *args, **kwargs):
+        """Handles GET requests to redirect to the original image or notify of an expired link.
+
+        Returns:
+            FileResponse: A response object with the original image file if the link is valid.
+            Response: A response object with a `410 Gone` status if the link has expired.
+        """
+
         alias = self.kwargs.get("alias")
         if cache.get(alias):
             link = get_object_or_404(ExpiringLink, alias=alias)

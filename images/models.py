@@ -16,6 +16,18 @@ def original_image_path(instance, filename):
 
 
 class Image(models.Model):
+    """Model representing an image uploaded by a user.
+
+    This model is designed to store images uploaded by users along with their metadata. It has fields for the image file, the user who uploaded it, and the time of upload. Additionally, it defines permissions regarding who can access the original image and
+    its thumbnails of specified sizes.
+
+    Attributes:
+        id (UUIDField): A unique identifier for each image record.
+        user (ForeignKey): Reference to the user who uploaded the image.
+        original_file (ImageField): The uploaded image file.
+        uploaded_at (DateTimeField): The time at which the image was uploaded.
+    """
+
     class Meta:
         permissions = [
             ("can_access_original_image", "Can access original image"),
@@ -37,6 +49,17 @@ class Image(models.Model):
 
 
 class ExpiringLink(models.Model):
+    """Model representing an expiring link for an image.
+
+    This model is utilized to generate time-sensitive links for images. Each link is associated with a specific image and has a predetermined lifespan after which it becomes inactive.
+
+    Attributes:
+        alias (UUIDField): A unique identifier for each expiring link record.
+        image (ForeignKey): Reference to the associated image for this link.
+        created_at (DateTimeField): The time at which the expiring link was generated.
+        expires_in (IntegerField): The lifespan of the link in seconds.
+    """
+
     class Meta:
         permissions = [
             ("can_generate_expiring_link", "Can generate expiring link"),
