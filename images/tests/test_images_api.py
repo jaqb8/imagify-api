@@ -3,7 +3,6 @@ from django.urls import reverse
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group, Permission
 from django.contrib.contenttypes.models import ContentType
-from django.core.files.uploadedfile import SimpleUploadedFile
 from images.models import Image
 from rest_framework.test import APIClient
 from rest_framework import status
@@ -11,25 +10,10 @@ import tempfile
 from PIL import Image as PILImage
 import shutil
 from django.core.files.storage import default_storage
-
+from .shared import generate_expiring_link_url, sample_image
 
 IMAGES_URL = reverse("images:images-list")
 UPLOAD_IMAGE_URL = reverse("images:image-upload")
-
-generate_expiring_link_url = lambda image_id: reverse(
-    "images:generate-link", args=[image_id]
-)
-
-
-def sample_image(user, **kwargs):
-    """Create and return a sample image object (disabled signals in order to avoid creating actual thumbnails)"""
-    defaults = {
-        "original_file": SimpleUploadedFile(
-            "test.jpg", b"file_content", content_type="image/jpeg"
-        )
-    }
-    defaults.update(kwargs)
-    return Image.objects.create(user=user, **defaults)
 
 
 class PublicImagesApiTests(TestCase):

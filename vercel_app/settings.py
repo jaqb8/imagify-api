@@ -61,18 +61,19 @@ REST_FRAMEWORK = {
     ],
 }
 
-CACHES = {
-    "default": {
-        "BACKEND": "django_redis.cache.RedisCache",
-        "LOCATION": os.environ.get("REDIS_URL"),
-        "OPTIONS": {
-            "CLIENT_CLASS": "django_redis.client.DefaultClient",
-            "PASSWORD": os.environ.get("REDIS_PASSWORD"),
-            "DB": 0,
-        },
-        "KEY_PREFIX": "hexocean",
+if not "test" in sys.argv:
+    CACHES = {
+        "default": {
+            "BACKEND": "django_redis.cache.RedisCache",
+            "LOCATION": os.environ.get("REDIS_URL"),
+            "OPTIONS": {
+                "CLIENT_CLASS": "django_redis.client.DefaultClient",
+                "PASSWORD": os.environ.get("REDIS_PASSWORD"),
+                "DB": 0,
+            },
+            "KEY_PREFIX": "hexocean",
+        }
     }
-}
 
 
 MIDDLEWARE = [
