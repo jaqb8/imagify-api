@@ -29,6 +29,46 @@ class PublicImagesApiTests(TestCase):
         self.assertEqual(res.status_code, status.HTTP_403_FORBIDDEN)
 
 
+class CommonImagesApiTests(TestCase):
+    """Test common use cases for images API"""
+
+    def setUp(self):
+        self.client = APIClient()
+        self.user = get_user_model().objects.create_user(
+            username="testuser", email="test@test.com", password="testpass"
+        )
+        self.client.force_authenticate(self.user)
+
+    def tearDown(self):
+        """Remove media files after each test"""
+        path = default_storage.path(f"./{self.user.id}")
+        if default_storage.exists(path):
+            shutil.rmtree(path)
+
+    def test_upload_image_invalid(self):
+        """Test uploading an invalid image with Basic Tier"""
+        res = self.client.post(
+            UPLOAD_IMAGE_URL, {"original_file": "notimage"}, format="multipart"
+        )
+
+        self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_upload_image_invalid_format(self):
+        """Test uploading an image with invalid format"""
+        with tempfile.NamedTemporaryFile(suffix=".pdf", mode="w+b") as ntf:
+            img = PILImage.new("RGB", (10, 10))
+            img.save(ntf, format="JPEG")
+            ntf.seek(0)
+            res = self.client.post(
+                UPLOAD_IMAGE_URL, {"original_file": ntf}, format="multipart"
+            )
+
+        self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn(
+            "Unsupported file extension", str(res.data.get("original_file")[0])
+        )
+
+
 class BasicUserImagesApiTests(TestCase):
     """Test basic user images API"""
 
@@ -82,14 +122,6 @@ class BasicUserImagesApiTests(TestCase):
         self.assertFalse(res.data.get("original_file"))
 
         self.assertTrue(default_storage.exists(image.original_file.path))
-
-    def test_upload_image_invalid(self):
-        """Test uploading an invalid image with Basic Tier"""
-        res = self.client.post(
-            UPLOAD_IMAGE_URL, {"original_file": "notimage"}, format="multipart"
-        )
-
-        self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_generate_expiring_link(self):
         """Test generating an expiring link with Basic Tier"""
@@ -154,14 +186,6 @@ class PremiumUserImagesApiTests(TestCase):
         self.assertTrue(res.data.get("thumbnail_400"))
         self.assertFalse(res.data.get("original_file"))
         self.assertTrue(default_storage.exists(image.original_file.path))
-
-    def test_upload_image_invalid(self):
-        """Test uploading an invalid image with Premium Tier"""
-        res = self.client.post(
-            UPLOAD_IMAGE_URL, {"original_file": "notimage"}, format="multipart"
-        )
-
-        self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_generate_expiring_link(self):
         """Test generating an expiring link with Premium Tier"""
@@ -228,14 +252,6 @@ class EnterpriseUserImagesApiTests(TestCase):
         self.assertTrue(res.data.get("original_file"))
         self.assertIn(image.original_file.name, res.data.get("original_file"))
         self.assertTrue(default_storage.exists(image.original_file.path))
-
-    def test_upload_image_invalid(self):
-        """Test uploading an invalid image with Enterprise Tier"""
-        res = self.client.post(
-            UPLOAD_IMAGE_URL, {"original_file": "notimage"}, format="multipart"
-        )
-
-        self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_generate_expiring_link(self):
         """Test generating an expiring link with Enterprise Tier"""

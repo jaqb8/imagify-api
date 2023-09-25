@@ -5,12 +5,15 @@ import os
 from django.conf import settings
 from lib.shared import UserGroupPermissions
 from django.core.exceptions import PermissionDenied
+from .validators import validate_image_file_extension
 
 
 class ImageSerializer(serializers.ModelSerializer):
     """Serializer for the Image model."""
 
-    original_file = serializers.ImageField(write_only=True)
+    original_file = serializers.ImageField(
+        write_only=True, validators=[validate_image_file_extension]
+    )
 
     class Meta:
         model = Image
