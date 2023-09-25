@@ -28,13 +28,13 @@ The diagram below provides a visual representation of how these cloud services a
 ## Demo
 
 Deployed to Vercel:
-https://hexocean-django.vercel.app/
+https://imagify-api.vercel.app/
 
 ## How it Works
 
 ### Authentication
 
-The app utilizes Django Rest Framework's `BrowsableAPIRenderer` for user authentication. Users can log in via https://hexocean-django.vercel.app/api-auth/login. User accounts can be created and managed through the Django admin UI, ensuring streamlined administration of access and permissions within the system.
+The app utilizes Django Rest Framework's `BrowsableAPIRenderer` for user authentication. Users can log in via https://imagify-api.vercel.app/api-auth/login. User accounts can be created and managed through the Django admin UI, ensuring streamlined administration of access and permissions within the system.
 
 ### Tier System
 
