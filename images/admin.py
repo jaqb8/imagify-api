@@ -1,6 +1,8 @@
 from django.contrib import admin
-from django.utils.html import format_html
+from django.contrib.auth.models import Permission
 from .models import ExpiringLink, Image
+
+admin.site.register(Permission)
 
 
 @admin.register(Image)

@@ -3,7 +3,6 @@ from django.db import models
 from django.contrib.auth.models import User
 from django.core.validators import MaxValueValidator, MinValueValidator
 from django.urls import reverse
-from django_advance_thumbnail import AdvanceThumbnailField
 from django.utils import timezone
 import uuid
 
@@ -16,31 +15,17 @@ def original_image_path(instance, filename):
     return os.path.join(f"{instance.user.id}/original/", filename)
 
 
-def thumbnail_200_path(instance, filename):
-    return f"{instance.user.id}/thumbnail_200/{filename}"
-
-
-def thumbnail_400_path(instance, filename):
-    return f"{instance.user.id}/thumbnail_400/{filename}"
-
-
 class Image(models.Model):
     class Meta:
         permissions = [
             ("can_access_original_image", "Can access original image"),
-            ("can_access_200px_thumbnail", "Can access 200px thumbnail"),
-            ("can_access_400px_thumbnail", "Can access 400px thumbnail"),
+            ("thumbnail:200", "can access 200px thumbnail"),
+            ("thumbnail:400", "can access 400px thumbnail"),
         ]
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     user = models.ForeignKey(User, on_delete=models.CASCADE)
     original_file = models.ImageField(upload_to=original_image_path)
-    thumbnail_200 = AdvanceThumbnailField(
-        source_field="original_file", upload_to=thumbnail_200_path, size=(200, 200)
-    )
-    thumbnail_400 = AdvanceThumbnailField(
-        source_field="original_file", upload_to=thumbnail_400_path, size=(400, 400)
-    )
     uploaded_at = models.DateTimeField(auto_now_add=True)
 
     @property
@@ -48,7 +33,7 @@ class Image(models.Model):
         return self.original_file.name.split("/")[-1]
 
     def __str__(self):
-        return f"Image by {self.user.username} - {self.uploaded_at}"
+        return f"Image by {self.user.username} - {self.filename} - {self.uploaded_at}"
 
 
 class ExpiringLink(models.Model):

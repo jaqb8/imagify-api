@@ -1,11 +1,12 @@
 from rest_framework import serializers
+from .aws import generate_thumbnail_url
 from .models import ExpiringLink, Image
+import os
+from django.conf import settings
 
 
 class ImageSerializer(serializers.ModelSerializer):
     original_file = serializers.ImageField(write_only=True)
-    thumbnail_200 = serializers.SerializerMethodField()
-    thumbnail_400 = serializers.SerializerMethodField()
 
     class Meta:
         model = Image
@@ -13,30 +14,43 @@ class ImageSerializer(serializers.ModelSerializer):
             "id",
             "uploaded_at",
             "original_file",
-            "thumbnail_200",
-            "thumbnail_400",
         )
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
         request = self.context.get("request")
-        user = request.user if request else None
+        if not request and not request.user:
+            return
 
-        if user and user.has_perm("images.can_access_original_image"):
+        if request.user.has_perm("images.can_access_original_image"):
             self.fields["original_file"].write_only = False
 
-    def get_thumbnail_200(self, obj):
-        request = self.context.get("request")
-        user = request.user if request else None
-        if user.has_perm("images.can_access_200px_thumbnail"):
-            return request.build_absolute_uri(obj.thumbnail_200.url)
+    def to_representation(self, instance):
+        representation = super().to_representation(instance)
 
-    def get_thumbnail_400(self, obj):
         request = self.context.get("request")
-        user = request.user if request else None
-        if user.has_perm("images.can_access_400px_thumbnail"):
-            return request.build_absolute_uri(obj.thumbnail_400.url)
+        if not request and not request.user:
+            return representation
+
+        thumbnail_permissions = request.user.user_permissions.filter(
+            codename__startswith="thumbnail:"
+        )
+
+        for permission in thumbnail_permissions:
+            perm_data = permission.codename.split(":")
+            if len(perm_data) < 2:
+                raise ValueError(f"Invalid permission codename: {permission.codename}")
+
+            _, height = perm_data
+            s3_object_key = os.path.join(
+                settings.PUBLIC_MEDIA_LOCATION, instance.original_file.name
+            )
+            representation[f"thumbnail_{height}"] = generate_thumbnail_url(
+                s3_object_key, height
+            )
+
+        return representation
 
 
 class ExpiringLinkSerializer(serializers.ModelSerializer):
