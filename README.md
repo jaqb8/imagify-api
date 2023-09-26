@@ -38,6 +38,10 @@ Swagger visualization is available on the homepage for an interactive exploratio
 
 The app utilizes Django Rest Framework's `BrowsableAPIRenderer` for user authentication. Users can log in via https://imagify-api.vercel.app/api-auth/login. User accounts can be created and managed through the Django admin UI, ensuring streamlined administration of access and permissions within the system.
 
+### Admin Panel
+
+Admin panel is accessible at https://imagify-api.vercel.app/admin for account management and system administration purposes.
+
 ### Tier System
 
 The user tier system within the ImagifyAPI is elegantly built upon the inherent permissions and groups feature of Django. There are four key predefined permissions that control the different levels of access and functionality across the system:

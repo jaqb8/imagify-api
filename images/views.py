@@ -37,7 +37,7 @@ class ImageUploadView(BaseImageView, generics.CreateAPIView):
 
 
 class UserImagesView(BaseImageView, generics.ListAPIView):
-    """Saves the uploaded image with the requesting user as the owner."""
+    """View to handle the listing of images owned by the requesting user."""
 
     def get_queryset(self):
         """Filters the Image queryset to return only images owned by the requesting user.
@@ -69,6 +69,8 @@ class GenerateExpiringLinkView(generics.CreateAPIView):
         """Handles the creation of an expiring link.
 
         Overrides the create method to handle the creation of an expiring link, and if successful, generates a URL for the expiring link, returning it in the response data.
+
+        Additionally, this view accepts a query parameter `image_id` for specifying the image for which the link should be generated.
 
         Returns:
             Response: The HTTP response object.
