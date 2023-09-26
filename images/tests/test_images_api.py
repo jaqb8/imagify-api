@@ -46,7 +46,7 @@ class CommonImagesApiTests(TestCase):
             shutil.rmtree(path)
 
     def test_upload_image_invalid(self):
-        """Test uploading an invalid image with Basic Tier"""
+        """Test uploading an invalid image"""
         res = self.client.post(
             UPLOAD_IMAGE_URL, {"original_file": "notimage"}, format="multipart"
         )
