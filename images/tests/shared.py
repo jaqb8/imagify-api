@@ -9,7 +9,7 @@ generate_expiring_link_url = lambda image_id: reverse(
 
 
 def sample_image(user, **kwargs):
-    """Create and return a sample image object (disabled signals in order to avoid creating actual thumbnails)"""
+    """Create and return a sample image object"""
     defaults = {
         "original_file": SimpleUploadedFile(
             "test.jpg", b"file_content", content_type="image/jpeg"
