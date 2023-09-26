@@ -25,7 +25,7 @@ class UserGroupPermissions:
         return cls(all_permissions)
 
     def contains(self, value):
-        """Checks if a permission exists in the QuerySet.
+        """Checks if a permission exists in permissions set.
 
         Args:
             value (str): permission codename
