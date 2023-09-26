@@ -30,7 +30,7 @@ The diagram below provides a visual representation of how these cloud services a
 Deployed to Vercel:
 https://imagify-api.vercel.app/
 
-The Swagger resource visualization is available on the homepage for an interactive exploration of the API's capabilities.
+Swagger visualization is available on the homepage for an interactive exploration of the API's capabilities.
 
 ## How it Works
 
